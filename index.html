@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>СЛЕЙ И НЕ ПАЛИСЬ 3D ⛽🤫</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; user-select:none; -webkit-tap-highlight-color:transparent; -webkit-touch-callout:none; }
+  html,body { height:100%; overflow:hidden; background:#0a0e14; font-family:'Segoe UI',Arial,sans-serif; overscroll-behavior:none; touch-action:manipulation; }
+  #canvasWrap { position:fixed; inset:0; }
+  canvas { display:block; }
+
+  #hud {
+    position:fixed; top:0; left:0; right:0; padding:14px;
+    display:flex; flex-direction:column; gap:8px; pointer-events:none; z-index:5;
+  }
+  #barsRow { display:flex; gap:8px; justify-content:space-between; }
+  .meter {
+    flex:1; background:rgba(0,0,0,0.45); border-radius:14px; padding:8px 12px;
+  }
+  .meterLabel { color:#cfd6e0; font-size:11px; font-weight:800; display:flex; justify-content:space-between; }
+  .meterTrack { height:8px; border-radius:6px; background:rgba(255,255,255,0.12); margin-top:5px; overflow:hidden; }
+  .meterFill { height:100%; width:0%; border-radius:6px; transition: width 0.08s linear; }
+  #carFill { background: linear-gradient(90deg,#3aa6ff,#6bd1ff); }
+  #canFill { background: linear-gradient(90deg,#ffd166,#ff9f1c); }
+  #susFill { background: linear-gradient(90deg,#ff6b6b,#ff3b3b); }
+
+  #topInfoRow { display:flex; justify-content:space-between; }
+  .badge { background:rgba(0,0,0,0.45); color:#fff; font-weight:800; font-size:13px; padding:6px 12px; border-radius:12px; }
+  #guardStatusBadge { transition: color 0.15s, background 0.15s; }
+
+  #toast {
+    position:fixed; top:120px; left:50%; transform:translateX(-50%);
+    color:#ffd166; font-weight:900; font-size:17px; text-align:center;
+    text-shadow:0 2px 8px rgba(0,0,0,0.7); opacity:0; transition:opacity 0.2s;
+    pointer-events:none; z-index:6; max-width:300px;
+  }
+  #toast.show { opacity:1; }
+
+  #pourBtnWrap {
+    position:fixed; bottom:0; left:0; right:0; padding:0 16px 26px; z-index:10;
+    display:flex; justify-content:center; gap:10px;
+  }
+  .pourBtn {
+    flex:1; max-width:230px; padding:20px 10px; font-size:16px; font-weight:900; color:#1e1e2e;
+    border:none; border-radius:50px; touch-action:manipulation;
+    box-shadow: 0 8px 0 rgba(0,0,0,0.25), 0 10px 20px rgba(0,0,0,0.3);
+  }
+  #pourCarBtn { background: linear-gradient(135deg,#7ecbff,#3aa6ff); box-shadow:0 8px 0 #1f6fae,0 10px 20px rgba(0,0,0,0.3); color:#0c2235; }
+  #pourCarBtn.active { transform: translateY(6px); box-shadow:0 2px 0 #1f6fae; }
+  #pourCanBtn { background: linear-gradient(135deg,#ffe26a,#ffb86c); box-shadow:0 8px 0 #c97f1f,0 10px 20px rgba(0,0,0,0.3); }
+  #pourCanBtn.active { transform: translateY(6px); box-shadow:0 2px 0 #c97f1f; }
+
+  #start, #overlay {
+    position:fixed; inset:0; background:rgba(8,10,15,0.97);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; padding:30px; z-index:30;
+  }
+  #overlay { display:none; }
+  #start h1, #overlay h1 { color:#fff; font-size:27px; margin-bottom:12px; }
+  #start p, #overlay p { color:#bbb; font-size:15px; margin-bottom:20px; max-width:340px; line-height:1.55; }
+  #overlay #resultStats { font-size:18px; color:#ffd166; font-weight:800; margin:14px 0; }
+  .actionBtn {
+    padding:16px 40px; font-size:18px; font-weight:800; color:#16331c;
+    background:#6bcb77; border:none; border-radius:50px; touch-action:manipulation;
+    box-shadow:0 6px 0 #3f8a48; cursor:pointer;
+  }
+  .actionBtn:active { transform:translateY(4px); box-shadow:0 2px 0 #3f8a48; }
+  #shareHint { color:#888; font-size:13px; margin-top:20px; }
+
+  .diffSelect { display:flex; gap:10px; margin-bottom:18px; }
+  .diffBtn {
+    padding:12px 14px; font-size:13px; font-weight:800; color:#fff;
+    background:rgba(255,255,255,0.08); border:2px solid rgba(255,255,255,0.15);
+    border-radius:16px; cursor:pointer; touch-action:manipulation;
+  }
+  .diffBtn.selected { background:rgba(255,209,102,0.18); border-color:#ffd166; color:#ffd166; transform:scale(1.05); }
+
+  .leaderboard { width:100%; max-width:320px; margin-bottom:20px; }
+  .leaderboard h3 { color:#ffd166; font-size:13px; margin-bottom:8px; letter-spacing:0.5px; }
+  .lbRow {
+    display:flex; justify-content:space-between; align-items:center;
+    background:rgba(255,255,255,0.06); border-radius:10px; padding:8px 12px; margin-bottom:6px;
+    font-size:13px; color:#ddd;
+  }
+  .lbRow .lbDiff { font-weight:800; }
+  .lbRow .lbBest { color:#ffd166; font-weight:800; }
+  .lbRow .lbAttempts { color:#888; font-size:11px; }
+
+  #guardStatusBadge.warn { animation: warnPulse 0.5s infinite; }
+  @keyframes warnPulse {
+    0%,100% { background:rgba(255,209,102,0.35); color:#fff4d0; }
+    50% { background:rgba(255,80,80,0.55); color:#fff; }
+  }
+
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    20% { transform: translateX(-10px); }
+    40% { transform: translateX(10px); }
+    60% { transform: translateX(-6px); }
+    80% { transform: translateX(6px); }
+  }
+  .shaking { animation: shake 0.3s; }
+</style>
+</head>
+<body>
+
+<div id="canvasWrap" class="shaking-target"></div>
+
+<div id="hud">
+  <div id="topInfoRow">
+    <div class="badge" id="guardStatusBadge">🙂 отвернулся</div>
+    <div class="badge" id="timerBadge">⏱ 45с</div>
+  </div>
+  <div id="barsRow">
+    <div class="meter">
+      <div class="meterLabel"><span>🚗 БАК</span><span id="carPctTxt">0%</span></div>
+      <div class="meterTrack"><div class="meterFill" id="carFill"></div></div>
+    </div>
+    <div class="meter">
+      <div class="meterLabel"><span>🛢️ КАНИСТРА</span><span id="canPctTxt">0%</span></div>
+      <div class="meterTrack"><div class="meterFill" id="canFill"></div></div>
+    </div>
+    <div class="meter">
+      <div class="meterLabel"><span>👁 ПОДОЗРЕНИЕ</span><span id="susPctTxt">0%</span></div>
+      <div class="meterTrack"><div class="meterFill" id="susFill"></div></div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<div id="pourBtnWrap">
+  <button class="pourBtn" id="pourCarBtn">🚗 ЛИТЬ В БАК</button>
+  <button class="pourBtn" id="pourCanBtn">🛢️ ЛИТЬ В КАНИСТРУ</button>
+</div>
+
+<div id="start">
+  <h1>СЛЕЙ И НЕ ПАЛИСЬ 3D ⛽</h1>
+  <p>Смотрящий <b>смотрит на тебя 👁️</b> — держи кнопку «В БАК», это законно.<br>
+  Смотрящий <b>отвернулся 🙂</b> — держи кнопку «В КАНИСТРУ», пока никто не видит!<br>
+  Перепутаешь — спалишься. Перед поворотом над его головой загорится ⚠️ — у тебя есть доля секунды среагировать.<br><br>
+  Залей бак на 100% и канистру на 80% до конца времени.</p>
+  <div class="diffSelect" id="diffSelectStart">
+    <button class="diffBtn" data-diff="easy">😌 ЛЕГКО</button>
+    <button class="diffBtn selected" data-diff="medium">🙂 СРЕДНЕ</button>
+    <button class="diffBtn" data-diff="hard">🔥 СЛОЖНО</button>
+  </div>
+  <div class="leaderboard" id="lbStart"></div>
+  <button class="actionBtn" id="startBtn">НАЧАТЬ НАЛИВ</button>
+</div>
+
+<div id="overlay">
+  <h1 id="resTitle">СПАЛИЛСЯ!</h1>
+  <p id="resPhrase"></p>
+  <div id="resultStats"></div>
+  <div class="leaderboard" id="lbOverlay"></div>
+  <div class="diffSelect" id="diffSelectOverlay">
+    <button class="diffBtn" data-diff="easy">😌 ЛЕГКО</button>
+    <button class="diffBtn selected" data-diff="medium">🙂 СРЕДНЕ</button>
+    <button class="diffBtn" data-diff="hard">🔥 СЛОЖНО</button>
+  </div>
+  <button class="actionBtn" id="retryBtn">ИГРАТЬ СНОВА</button>
+  <div id="shareHint">📲 Скинь другу — пусть тоже попробует не спалиться</div>
+</div>
+
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ---------- TELEGRAM MINI APP INTEGRATION ----------
+function tgApp(){ return (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null; }
+
+(function initTelegram(){
+  const t = tgApp();
+  if(!t) return; // running outside Telegram (plain browser) — game still works fully
+  try{
+    t.ready();
+    t.expand();
+    if(t.disableVerticalSwipes) t.disableVerticalSwipes();
+    t.setHeaderColor && t.setHeaderColor('#1a2230');
+    t.setBackgroundColor && t.setBackgroundColor('#0a0e14');
+  }catch(e){ console.warn('Telegram init warning:', e); }
+})();
+
+function hapticImpact(style){
+  const t = tgApp();
+  try{ t && t.HapticFeedback && t.HapticFeedback.impactOccurred(style || 'light'); }catch(e){}
+}
+function hapticNotify(type){
+  const t = tgApp();
+  try{ t && t.HapticFeedback && t.HapticFeedback.notificationOccurred(type); }catch(e){}
+}
+
+// ---------- THREE SETUP ----------
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a2230);
+scene.fog = new THREE.Fog(0x1a2230, 14, 34);
+
+const camera = new THREE.PerspectiveCamera(48, window.innerWidth/window.innerHeight, 0.1, 100);
+camera.position.set(0, 5.2, 8.5);
+camera.lookAt(0, 1, -1);
+
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.shadowMap.enabled = true;
+document.getElementById('canvasWrap').appendChild(renderer.domElement);
+
+window.addEventListener('resize', ()=>{
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+const hemi = new THREE.HemisphereLight(0xffffff, 0x222233, 0.85);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xfff0cc, 1.1);
+sun.position.set(6,10,6);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024,1024);
+sun.shadow.camera.left=-12; sun.shadow.camera.right=12;
+sun.shadow.camera.top=12; sun.shadow.camera.bottom=-12;
+scene.add(sun);
+
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(24,24),
+  new THREE.MeshLambertMaterial({ color:0x44494f })
+);
+ground.rotation.x = -Math.PI/2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// faint forecourt lines
+for(let i=-2;i<=2;i++){
+  const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.08,0.01,8), new THREE.MeshLambertMaterial({color:0x5a6168}));
+  stripe.position.set(i*1.8, 0.01, -2);
+  scene.add(stripe);
+}
+
+// ---------- PUMP ----------
+function buildPump(){
+  const g = new THREE.Group();
+  const base = new THREE.Mesh(new THREE.BoxGeometry(0.9,1.7,0.6), new THREE.MeshLambertMaterial({color:0xffd166}));
+  base.position.y = 0.85; base.castShadow = true;
+  g.add(base);
+  const screen = new THREE.Mesh(new THREE.BoxGeometry(0.5,0.4,0.05), new THREE.MeshLambertMaterial({color:0x1a1a1a}));
+  screen.position.set(0,1.3,0.33);
+  g.add(screen);
+  const nozzleHolder = new THREE.Mesh(new THREE.SphereGeometry(0.12,10,10), new THREE.MeshLambertMaterial({color:0x333333}));
+  nozzleHolder.position.set(0.5, 1.5, 0.2);
+  g.add(nozzleHolder);
+  g.userData.nozzle = nozzleHolder;
+  return g;
+}
+const pump = buildPump();
+pump.position.set(0, 0, -1.5);
+scene.add(pump);
+
+// canopy roof for vibe
+const canopy = new THREE.Mesh(new THREE.BoxGeometry(8,0.4,5), new THREE.MeshLambertMaterial({color:0xdd3344}));
+canopy.position.set(0, 4.2, -1.5);
+canopy.castShadow = true;
+scene.add(canopy);
+[[-3.4,-3.6],[3.4,-3.6],[-3.4,0.6],[3.4,0.6]].forEach(p=>{
+  const pole = new THREE.Mesh(new THREE.BoxGeometry(0.25,4,0.25), new THREE.MeshLambertMaterial({color:0xcccccc}));
+  pole.position.set(p[0], 2, p[1]);
+  scene.add(pole);
+});
+
+// ---------- CAR (legit target) ----------
+function buildCar(color){
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.6,0.6,3.2), new THREE.MeshLambertMaterial({color}));
+  body.position.y = 0.6; body.castShadow = true;
+  g.add(body);
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.3,0.5,1.6), new THREE.MeshLambertMaterial({color:0x223344}));
+  cabin.position.set(0,1.05,-0.2); cabin.castShadow = true;
+  g.add(cabin);
+  const wheelGeo = new THREE.CylinderGeometry(0.32,0.32,0.3,12);
+  [[-0.85,0.32,1.1],[0.85,0.32,1.1],[-0.85,0.32,-1.1],[0.85,0.32,-1.1]].forEach(p=>{
+    const w = new THREE.Mesh(wheelGeo, new THREE.MeshLambertMaterial({color:0x111111}));
+    w.rotation.z = Math.PI/2;
+    w.position.set(p[0],p[1],p[2]);
+    g.add(w);
+  });
+  return g;
+}
+const car = buildCar(0x3aa6ff);
+car.rotation.y = Math.PI/2;
+car.position.set(-2.3, 0, -1.2);
+scene.add(car);
+const carTargetPoint = new THREE.Vector3(-1.6, 1.0, -1.4); // near fuel cap
+
+// ---------- CANISTER (stealth target, partly hidden) ----------
+function buildCanister(){
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.55,0.75,0.4), new THREE.MeshLambertMaterial({color:0xdd5522}));
+  body.position.y = 0.4; body.castShadow = true;
+  g.add(body);
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,0.15,8), new THREE.MeshLambertMaterial({color:0x222222}));
+  cap.position.set(0.18,0.82,0);
+  g.add(cap);
+  const handle = new THREE.Mesh(new THREE.TorusGeometry(0.16,0.04,6,12), new THREE.MeshLambertMaterial({color:0x222222}));
+  handle.position.set(0,0.82,0); handle.rotation.x = Math.PI/2;
+  g.add(handle);
+  return g;
+}
+// small crate to hide canister behind, for "stealth" framing
+const crate = new THREE.Mesh(new THREE.BoxGeometry(1.0,0.8,0.8), new THREE.MeshLambertMaterial({color:0x6b4f3a}));
+crate.position.set(2.2, 0.4, -0.6);
+crate.castShadow = true;
+scene.add(crate);
+
+const canister = buildCanister();
+canister.position.set(2.4, 0, -1.3);
+scene.add(canister);
+const canTargetPoint = new THREE.Vector3(2.4, 0.85, -1.3);
+
+// ---------- GUARD ----------
+function buildGuard(){
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.34,0.4,1.3,10), new THREE.MeshLambertMaterial({color:0x3355aa}));
+  body.position.y = 0.95; body.castShadow = true;
+  g.add(body);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.3,14,14), new THREE.MeshLambertMaterial({color:0xffcc99}));
+  head.position.y = 1.85; head.castShadow = true;
+  g.add(head);
+  // face marker (nose) so we can tell which way he's facing visually
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.07,0.18,8), new THREE.MeshLambertMaterial({color:0xdd9966}));
+  nose.position.set(0,1.85,0.28);
+  nose.rotation.x = Math.PI/2;
+  g.add(nose);
+  // eyes
+  const eyeGeo = new THREE.SphereGeometry(0.06,10,10);
+  const eyeMat = new THREE.MeshBasicMaterial({color:0xffffff});
+  const pupilGeo = new THREE.SphereGeometry(0.03,8,8);
+  const pupilMat = new THREE.MeshBasicMaterial({color:0x111111});
+  [-0.13, 0.13].forEach(xOff=>{
+    const eye = new THREE.Mesh(eyeGeo, eyeMat);
+    eye.position.set(xOff, 1.92, 0.26);
+    g.add(eye);
+    const pupil = new THREE.Mesh(pupilGeo, pupilMat);
+    pupil.position.set(xOff, 1.92, 0.31);
+    g.add(pupil);
+  });
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.32,0.32,0.18,14), new THREE.MeshLambertMaterial({color:0x223366}));
+  cap.position.y = 2.05;
+  g.add(cap);
+  // warning icon shown briefly before he turns
+  const warnIcon = new THREE.Mesh(new THREE.OctahedronGeometry(0.14,0), new THREE.MeshBasicMaterial({color:0xffe400}));
+  warnIcon.position.set(0, 2.55, 0);
+  warnIcon.visible = false;
+  g.add(warnIcon);
+  g.userData.warnIcon = warnIcon;
+  return g;
+}
+const guard = buildGuard();
+guard.position.set(0, 0, 1.8);
+scene.add(guard);
+
+let guardCurrentAngle = Math.PI; // facing away by default
+let guardTargetAngle = Math.PI;
+
+// ---------- PLAYER (main character pouring fuel) ----------
+function buildPlayer(){
+  const g = new THREE.Group();
+  const legs = new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.26,0.7,10), new THREE.MeshLambertMaterial({color:0x2a2a2a}));
+  legs.position.y = 0.35; legs.castShadow = true;
+  g.add(legs);
+  const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.34,0.85,10), new THREE.MeshLambertMaterial({color:0x4caf6e}));
+  torso.position.y = 1.1; torso.castShadow = true;
+  g.add(torso);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.26,14,14), new THREE.MeshLambertMaterial({color:0xffcc99}));
+  head.position.y = 1.7; head.castShadow = true;
+  g.add(head);
+  const hair = new THREE.Mesh(new THREE.SphereGeometry(0.27,14,14,0,Math.PI*2,0,Math.PI/2), new THREE.MeshLambertMaterial({color:0x3a2a1a}));
+  hair.position.y = 1.78;
+  g.add(hair);
+  // arm holding the hose, reaching forward
+  const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,0.7,8), new THREE.MeshLambertMaterial({color:0x4caf6e}));
+  arm.position.set(0.28, 1.05, 0.25);
+  arm.rotation.x = Math.PI/2.4;
+  arm.rotation.z = -0.3;
+  g.add(arm);
+  const hand = new THREE.Mesh(new THREE.SphereGeometry(0.1,10,10), new THREE.MeshLambertMaterial({color:0x333333}));
+  hand.position.set(0.42, 0.78, 0.55);
+  g.add(hand);
+  g.userData.hand = hand;
+  return g;
+}
+const player = buildPlayer();
+player.position.set(0.3, 0, -0.5);
+scene.add(player);
+
+// ---------- FUEL STREAM PARTICLES ----------
+const dropletCount = 7;
+const droplets = [];
+for(let i=0;i<dropletCount;i++){
+  const d = new THREE.Mesh(new THREE.SphereGeometry(0.06,8,8), new THREE.MeshBasicMaterial({color:0xffd166}));
+  d.visible = false;
+  scene.add(d);
+  droplets.push(d);
+}
+
+// ---------- DIFFICULTY ----------
+const DIFFICULTIES = {
+  easy:   { timeLimit:70, lookMin:2600, lookMax:4200, watchMin:2400, watchMax:3600, pourRate:15, susGain:9,  susDecay:18, turnSpeed:1.1, warnLead:1300 },
+  medium: { timeLimit:55, lookMin:2000, lookMax:3200, watchMin:1900, watchMax:2900, pourRate:13, susGain:12, susDecay:14, turnSpeed:1.4, warnLead:1000 },
+  hard:   { timeLimit:42, lookMin:1600, lookMax:2500, watchMin:1500, watchMax:2300, pourRate:12, susGain:16, susDecay:11, turnSpeed:1.8, warnLead:750  },
+};
+let currentDiff = 'medium';
+document.querySelectorAll('.diffBtn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    currentDiff = btn.dataset.diff;
+    document.querySelectorAll('.diffBtn').forEach(b=>{
+      b.classList.toggle('selected', b.dataset.diff === currentDiff);
+    });
+  });
+});
+
+// ---------- GAME STATE ----------
+let running = false;
+let watching = false; // true = guard facing player -> legit target = car
+let pouringCar = false;
+let pouringCanister = false;
+let carPct = 0, canPct = 0, suspicion = 0;
+let timeLeft = 45;
+const CAR_TARGET = 100, CAN_TARGET = 80;
+let switchTimeout = null;
+let warnTimeout = null;
+let loopInterval = null;
+
+const carFillEl = document.getElementById('carFill');
+const canFillEl = document.getElementById('canFill');
+const susFillEl = document.getElementById('susFill');
+const carPctTxt = document.getElementById('carPctTxt');
+const canPctTxt = document.getElementById('canPctTxt');
+const susPctTxt = document.getElementById('susPctTxt');
+const guardStatusBadge = document.getElementById('guardStatusBadge');
+const timerBadge = document.getElementById('timerBadge');
+const toast = document.getElementById('toast');
+const pourCarBtn = document.getElementById('pourCarBtn');
+const pourCanBtn = document.getElementById('pourCanBtn');
+const startScreen = document.getElementById('start');
+const overlay = document.getElementById('overlay');
+const resTitle = document.getElementById('resTitle');
+const resPhrase = document.getElementById('resPhrase');
+const resultStats = document.getElementById('resultStats');
+const canvasWrap = document.getElementById('canvasWrap');
+const lbStart = document.getElementById('lbStart');
+const lbOverlay = document.getElementById('lbOverlay');
+
+function rand(a,b){ return Math.random()*(b-a)+a; }
+
+// ---------- LEADERBOARD (persistent storage) ----------
+const DIFF_LABELS = { easy:'😌 Легко', medium:'🙂 Средне', hard:'🔥 Сложно' };
+let records = { easy:{best:null,attempts:0}, medium:{best:null,attempts:0}, hard:{best:null,attempts:0} };
+
+async function loadRecords(){
+  const t = tgApp();
+  if(t && t.CloudStorage){
+    await new Promise(resolve=>{
+      t.CloudStorage.getItem('azs_stealth_records', (err, value)=>{
+        if(!err && value){
+          try{ records = Object.assign(records, JSON.parse(value)); }catch(e){}
+        }
+        resolve();
+      });
+    });
+  } else if(typeof window.storage !== 'undefined'){
+    try{
+      const r = await window.storage.get('azs-stealth-records', false);
+      if(r && r.value){
+        records = Object.assign(records, JSON.parse(r.value));
+      }
+    }catch(e){
+      // no saved records yet, keep defaults
+    }
+  } else {
+    try{
+      const raw = localStorage.getItem('azs-stealth-records');
+      if(raw){ records = Object.assign(records, JSON.parse(raw)); }
+    }catch(e){
+      // localStorage unavailable or empty — keep defaults, records won't persist this session
+    }
+  }
+  renderLeaderboard();
+}
+
+function saveRecords(){
+  const t = tgApp();
+  const json = JSON.stringify(records);
+  if(t && t.CloudStorage){
+    t.CloudStorage.setItem('azs_stealth_records', json, ()=>{});
+  } else if(typeof window.storage !== 'undefined'){
+    window.storage.set('azs-stealth-records', json, false).catch(e=>{
+      console.error('Не удалось сохранить рекорды', e);
+    });
+  } else {
+    try{ localStorage.setItem('azs-stealth-records', json); }catch(e){}
+  }
+}
+
+function renderLeaderboard(){
+  const html = `
+    <h3>🏆 ТАБЛИЦА РЕКОРДОВ</h3>
+    ${['easy','medium','hard'].map(key=>{
+      const rec = records[key];
+      const bestTxt = rec.best != null ? rec.best.toFixed(1) + 'с' : '—';
+      return `<div class="lbRow">
+        <span class="lbDiff">${DIFF_LABELS[key]}</span>
+        <span class="lbBest">${bestTxt}</span>
+        <span class="lbAttempts">${rec.attempts} попыт.</span>
+      </div>`;
+    }).join('')}
+  `;
+  if(lbStart) lbStart.innerHTML = html;
+  if(lbOverlay) lbOverlay.innerHTML = html;
+}
+
+loadRecords();
+
+function showToast(msg){
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(()=> toast.classList.remove('show'), 1100);
+}
+
+function setGuardState(isWatching){
+  const wasWatching = watching;
+  watching = isWatching;
+  guardTargetAngle += Math.PI;
+  if(isWatching){
+    guardStatusBadge.textContent = '😠 СМОТРИТ — лей в БАК!';
+    guardStatusBadge.style.background = 'rgba(255,107,107,0.35)';
+    guardStatusBadge.style.color = '#ffdada';
+  } else {
+    guardStatusBadge.textContent = '🙂 отвернулся — лей в КАНИСТРУ!';
+    guardStatusBadge.style.background = 'rgba(107,203,119,0.25)';
+    guardStatusBadge.style.color = '#d8ffd8';
+  }
+  // instant bust if caught pouring into canister exactly as he turns to watch
+  if(isWatching && pouringCanister){
+    bust("Обернулся, пока ты лил в канистру!");
+  }
+}
+
+function showWarning(){
+  guard.userData.warnIcon.visible = true;
+  guardStatusBadge.classList.add('warn');
+  showToast(watching ? "⚠️ Сейчас отвернётся!" : "⚠️ Сейчас обернётся!");
+}
+
+function hideWarning(){
+  guard.userData.warnIcon.visible = false;
+  guardStatusBadge.classList.remove('warn');
+}
+
+function scheduleGuardSwitch(){
+  const d = DIFFICULTIES[currentDiff];
+  const delay = watching ? rand(d.watchMin, d.watchMax) : rand(d.lookMin, d.lookMax);
+  // guarantee the warning always has room to show: never more than 55% of the interval,
+  // so it can never collide with the moment the interval starts.
+  const leadTime = Math.min(d.warnLead, delay * 0.55);
+  const warnAt = delay - leadTime;
+
+  clearTimeout(warnTimeout);
+  clearTimeout(switchTimeout);
+
+  warnTimeout = setTimeout(()=>{
+    if(!running) return;
+    showWarning();
+  }, warnAt);
+
+  switchTimeout = setTimeout(()=>{
+    if(!running) return;
+    hideWarning();
+    setGuardState(!watching);
+    scheduleGuardSwitch();
+  }, delay);
+}
+
+function pourCarDown(){
+  if(!running) return;
+  hapticImpact('light');
+  pouringCanister = false;
+  pourCanBtn.classList.remove('active');
+  pouringCar = true;
+  pourCarBtn.classList.add('active');
+}
+function pourCarUp(){
+  pouringCar = false;
+  pourCarBtn.classList.remove('active');
+}
+function pourCanDown(){
+  if(!running) return;
+  hapticImpact('light');
+  pouringCar = false;
+  pourCarBtn.classList.remove('active');
+  if(watching){
+    bust("Налил в канистру у него на глазах!");
+    return;
+  }
+  pouringCanister = true;
+  pourCanBtn.classList.add('active');
+}
+function pourCanUp(){
+  pouringCanister = false;
+  pourCanBtn.classList.remove('active');
+}
+
+pourCarBtn.addEventListener('pointerdown', e=>{ e.preventDefault(); try{ pourCarBtn.setPointerCapture(e.pointerId); }catch(err){} pourCarDown(); });
+pourCarBtn.addEventListener('pointerup', e=>{ e.preventDefault(); pourCarUp(); });
+pourCarBtn.addEventListener('pointercancel', pourCarUp);
+pourCarBtn.addEventListener('pointerleave', pourCarUp);
+pourCarBtn.addEventListener('touchstart', e=>{ e.preventDefault(); pourCarDown(); }, {passive:false});
+pourCarBtn.addEventListener('touchend', e=>{ e.preventDefault(); pourCarUp(); }, {passive:false});
+pourCarBtn.addEventListener('touchcancel', pourCarUp);
+pourCarBtn.addEventListener('mousedown', pourCarDown);
+pourCarBtn.addEventListener('mouseup', pourCarUp);
+pourCarBtn.addEventListener('mouseleave', pourCarUp);
+
+pourCanBtn.addEventListener('pointerdown', e=>{ e.preventDefault(); try{ pourCanBtn.setPointerCapture(e.pointerId); }catch(err){} pourCanDown(); });
+pourCanBtn.addEventListener('pointerup', e=>{ e.preventDefault(); pourCanUp(); });
+pourCanBtn.addEventListener('pointercancel', pourCanUp);
+pourCanBtn.addEventListener('pointerleave', pourCanUp);
+pourCanBtn.addEventListener('touchstart', e=>{ e.preventDefault(); pourCanDown(); }, {passive:false});
+pourCanBtn.addEventListener('touchend', e=>{ e.preventDefault(); pourCanUp(); }, {passive:false});
+pourCanBtn.addEventListener('touchcancel', pourCanUp);
+pourCanBtn.addEventListener('mousedown', pourCanDown);
+pourCanBtn.addEventListener('mouseup', pourCanUp);
+pourCanBtn.addEventListener('mouseleave', pourCanUp);
+
+function updateBars(){
+  carFillEl.style.width = Math.min(100,carPct) + '%';
+  canFillEl.style.width = Math.min(100,canPct) + '%';
+  susFillEl.style.width = Math.min(100,suspicion) + '%';
+  carPctTxt.textContent = Math.round(Math.min(100,carPct)) + '%';
+  canPctTxt.textContent = Math.round(Math.min(100,canPct)) + '%';
+  susPctTxt.textContent = Math.round(Math.min(100,suspicion)) + '%';
+}
+
+function tick(dtMs){
+  if(!running) return;
+  const d = DIFFICULTIES[currentDiff];
+  const dt = dtMs/1000;
+
+  timeLeft -= dt;
+  timerBadge.textContent = `⏱ ${Math.max(0,timeLeft).toFixed(1)}с`;
+  if(timeLeft <= 0){
+    fail("Время вышло, очередь за тобой уже бесится.");
+    return;
+  }
+
+  if(pouringCar){
+    carPct += d.pourRate * dt;
+  }
+  if(pouringCanister){
+    canPct += d.pourRate * dt;
+  }
+
+  if(watching && !pouringCar){
+    suspicion += d.susGain * dt * 0.5;
+  } else if(watching && pouringCar){
+    suspicion = Math.max(0, suspicion - d.susDecay*dt*0.6);
+  } else {
+    suspicion = Math.max(0, suspicion - d.susDecay*dt*0.3);
+  }
+
+  if(suspicion >= 100){
+    bust("Слишком подозрительно мялся у машины.");
+    return;
+  }
+
+  updateBars();
+
+  if(carPct >= CAR_TARGET && canPct >= CAN_TARGET){
+    win();
+  }
+}
+
+const bustPhrases = [
+  "Камеры АЗС всё записали.",
+  "Сосед по очереди уже снимает видео.",
+  "Смотрящий явно не в первый раз такое видит.",
+  "Это попадёт в чат охраны.",
+];
+const failPhrases = [
+  "Бак не долит, канистра пустая — позорище.",
+  "Слишком медленно соображал.",
+];
+const winPhrases = [
+  "Идеальный тайминг, ни одной осечки!",
+  "Смотрящий так и не понял, что произошло.",
+  "Бак полный, канистра в багажнике — красота.",
+];
+
+function shakeScene(){
+  canvasWrap.classList.add('shaking');
+  setTimeout(()=> canvasWrap.classList.remove('shaking'), 300);
+}
+
+function endCommon(){
+  running = false;
+  pouringCar = false;
+  pouringCanister = false;
+  pourCarBtn.classList.remove('active');
+  pourCanBtn.classList.remove('active');
+  clearInterval(loopInterval);
+  clearTimeout(switchTimeout);
+  clearTimeout(warnTimeout);
+  hideWarning();
+}
+
+function bust(reason){
+  endCommon();
+  shakeScene();
+  hapticNotify('error');
+  records[currentDiff].attempts++;
+  saveRecords();
+  renderLeaderboard();
+  resTitle.textContent = "СПАЛИЛСЯ! 🚨";
+  resPhrase.textContent = reason + " " + bustPhrases[Math.floor(Math.random()*bustPhrases.length)];
+  resultStats.textContent = `Бак: ${Math.round(Math.min(100,carPct))}% · Канистра: ${Math.round(Math.min(100,canPct))}%`;
+  setTimeout(()=>{ overlay.style.display = 'flex'; }, 300);
+}
+
+function fail(reason){
+  endCommon();
+  hapticNotify('warning');
+  records[currentDiff].attempts++;
+  saveRecords();
+  renderLeaderboard();
+  resTitle.textContent = "НЕ УСПЕЛ 😩";
+  resPhrase.textContent = reason + " " + failPhrases[Math.floor(Math.random()*failPhrases.length)];
+  resultStats.textContent = `Бак: ${Math.round(Math.min(100,carPct))}% · Канистра: ${Math.round(Math.min(100,canPct))}%`;
+  setTimeout(()=>{ overlay.style.display = 'flex'; }, 300);
+}
+
+function win(){
+  endCommon();
+  hapticNotify('success');
+  const d = DIFFICULTIES[currentDiff];
+  const spent = d.timeLimit - timeLeft;
+  records[currentDiff].attempts++;
+  let isRecord = false;
+  if(records[currentDiff].best === null || spent < records[currentDiff].best){
+    records[currentDiff].best = spent;
+    isRecord = true;
+  }
+  saveRecords();
+  renderLeaderboard();
+  resTitle.textContent = "ЧИСТАЯ РАБОТА! 🏆";
+  resPhrase.textContent = winPhrases[Math.floor(Math.random()*winPhrases.length)] + (isRecord ? " 🏆 НОВЫЙ РЕКОРД!" : "");
+  resultStats.textContent = `Время: ${spent.toFixed(1)}с · Осталось: ${Math.max(0,timeLeft).toFixed(1)}с`;
+  setTimeout(()=>{ overlay.style.display = 'flex'; }, 300);
+}
+
+function startGame(){
+  startScreen.style.display = 'none';
+  overlay.style.display = 'none';
+  const d = DIFFICULTIES[currentDiff];
+  running = true;
+  pouringCar = false;
+  pouringCanister = false;
+  carPct = 0; canPct = 0; suspicion = 0;
+  timeLeft = d.timeLimit;
+  timerBadge.textContent = `⏱ ${timeLeft}с`;
+  watching = false;
+  guardCurrentAngle = Math.PI;
+  guardTargetAngle = Math.PI;
+  guard.rotation.y = Math.PI;
+  hideWarning();
+  setGuardState(false);
+  updateBars();
+  scheduleGuardSwitch();
+}
+
+document.getElementById('startBtn').addEventListener('click', startGame);
+document.getElementById('retryBtn').addEventListener('click', startGame);
+
+// ---------- ANIMATION LOOP ----------
+let lastTime = performance.now();
+function animate(now){
+  requestAnimationFrame(animate);
+  const dtMs = Math.min(80, now - lastTime);
+  lastTime = now;
+  const dt = dtMs / 1000;
+
+  // sharp, snappy turn (with a little smoothing so it's not a teleport)
+  guardCurrentAngle += (guardTargetAngle - guardCurrentAngle) * 0.35;
+  guard.rotation.y = guardCurrentAngle;
+
+  // pulsing warning icon
+  if(guard.userData.warnIcon.visible){
+    const s = 1 + Math.sin(now/90) * 0.35;
+    guard.userData.warnIcon.scale.set(s,s,s);
+    guard.userData.warnIcon.rotation.y += 0.15;
+  }
+
+  // player leans/turns toward whichever target is currently being poured, bobs while pouring
+  const activeTarget = pouringCanister ? canTargetPoint : carTargetPoint;
+  const toTarget = new THREE.Vector3().subVectors(activeTarget, player.position);
+  const desiredYaw = Math.atan2(toTarget.x, toTarget.z);
+  player.rotation.y += (desiredYaw - player.rotation.y) * 0.1;
+  player.position.y = (running && (pouringCar || pouringCanister)) ? Math.abs(Math.sin(now/140)) * 0.04 : 0;
+
+  // droplets stream animation, originating from player's hand
+  const handWorld = new THREE.Vector3();
+  player.userData.hand.getWorldPosition(handWorld);
+
+  droplets.forEach((dr, i)=>{
+    if(running && (pouringCar || pouringCanister)){
+      dr.visible = true;
+      const t = ((now/280) + i/dropletCount) % 1;
+      dr.position.lerpVectors(handWorld, activeTarget, t);
+      dr.position.y -= Math.sin(t*Math.PI) * 0.15; // slight arc/gravity
+    } else {
+      dr.visible = false;
+    }
+  });
+
+  if(running){
+    tick(dtMs);
+  }
+
+  renderer.render(scene, camera);
+}
+requestAnimationFrame(animate);
+</script>
+
+</body>
+</html>
